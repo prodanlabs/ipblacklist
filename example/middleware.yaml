@@ -1,0 +1,14 @@
+apiVersion: traefik.containo.us/v1alpha1
+kind: Middleware
+metadata:
+  name: demo-plugin
+spec:
+  plugin:
+    ipblacklist:
+      staticBlacklist:
+      - "192.168.1.1"
+      - "127.0.0.1"
+      DynamicBlacklist:
+        Enabled: true
+        PeriodSeconds: 120
+        RateLimitThreshold: 2
