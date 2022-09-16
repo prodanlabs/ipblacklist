@@ -3,12 +3,13 @@ package ipblacklist
 import (
 	"context"
 	"log"
+	"net"
 	"net/http"
 	"strings"
 )
 
 const (
-	XOriginalForwardedFor = "X-Original-Forwarded-For"
+	xOriginalForwardedFor = "X-Original-Forwarded-For"
 	xForwardedFor         = "X-Forwarded-For"
 	xRealIP               = "X-Real-Ip"
 )
@@ -48,27 +49,25 @@ func New(ctx context.Context, next http.Handler, config *Config, name string) (h
 }
 
 func (r *ipBlackLister) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
-
-	log.Println("------------>", r.realIPDepth)
-	originalForwarded := strings.Split(req.Header.Get(XOriginalForwardedFor), ",")
-	log.Printf("X-Original-Forwarded-For cap: %d v0: %s value: %s", len(originalForwarded), originalForwarded[0], originalForwarded)
-
-	forwarded := strings.Split(req.Header.Get(xForwardedFor), ",")
-	log.Printf("X-Forwarded-For cap: %d v0: %s value: %s", len(forwarded), forwarded[0], forwarded)
-
-	realIP := strings.Split(req.Header.Get(xRealIP), ",")
-	log.Printf("X-Real-Ip cap: %d v0: %s value: %s", len(realIP), realIP[0], realIP)
+	log.Printf("RealIP : %s", r.RealIP(req, r.realIPDepth))
 	r.next.ServeHTTP(rw, req)
 }
 
-func (r *ipBlackLister) RealIP(req *http.Request, depth int) {
-	originalForwarded := strings.Split(req.Header.Get(XOriginalForwardedFor), ",")
-	log.Printf("X-Original-Forwarded-For cap: %d v0: %s value: %s", len(originalForwarded), originalForwarded[0], originalForwarded)
+func (r *ipBlackLister) RealIP(req *http.Request, depth int) net.IP {
+	ipFromXRealIP := strings.Split(req.Header.Get(xRealIP), ",")
+	if ip := net.ParseIP(ipFromXRealIP[depth]); ip != nil {
+		return ip
+	}
 
-	forwarded := strings.Split(req.Header.Get(xForwardedFor), ",")
-	log.Printf("X-Forwarded-For cap: %d v0: %s value: %s", len(forwarded), forwarded[0], forwarded)
+	ipFromXForwardedFor := strings.Split(req.Header.Get(xForwardedFor), ",")
+	if ip := net.ParseIP(ipFromXForwardedFor[depth]); ip != nil {
+		return ip
+	}
 
-	realIP := strings.Split(req.Header.Get(xRealIP), ",")
-	log.Printf("X-Real-Ip cap: %d v0: %s value: %s", len(realIP), realIP[0], realIP)
+	ipFromXOriginalForwardedFor := strings.Split(req.Header.Get(xOriginalForwardedFor), ",")
+	if ip := net.ParseIP(ipFromXOriginalForwardedFor[depth]); ip != nil {
+		return ip
+	}
 
+	return nil
 }

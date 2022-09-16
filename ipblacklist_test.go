@@ -9,7 +9,7 @@ import (
 
 func TestNew(t *testing.T) {
 	cfg := &Config{}
-	cfg.IPBlacklists = []string{"127.0.0.1", "192.168.1.1"}
+	cfg.StaticBlacklist = []string{"127.0.0.1", "192.168.1.1"}
 	ctx := context.Background()
 	next := http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {})
 
