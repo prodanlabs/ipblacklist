@@ -8,6 +8,7 @@ import (
 )
 
 func TestNew(t *testing.T) {
+	//fmt.Println(time.Now().UTC())
 	cfg := &Config{}
 	cfg.StaticBlacklist = []string{"127.0.0.1", "192.168.1.1"}
 	ctx := context.Background()
