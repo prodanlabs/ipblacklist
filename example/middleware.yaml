@@ -8,9 +8,4 @@ spec:
       StaticBlacklist:
       - "192.168.1.1"
       - "127.0.0.1"
-      DynamicBlacklist:
-        Enabled: true
-        PeriodSeconds: 120
-        RateLimitThreshold: 2
-        DBPath: "./test.db"
       RealIPDepth: 0

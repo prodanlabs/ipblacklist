@@ -2,13 +2,9 @@ package ipblacklist
 
 import (
 	"context"
-	"log"
 	"net"
 	"net/http"
 	"strings"
-	"time"
-
-	"github.com/prodanlabs/ipblacklist/pkg/datasource"
 )
 
 const (
@@ -17,44 +13,28 @@ const (
 	xRealIP               = "X-Real-Ip"
 )
 
-type dynamicBlacklist struct {
-	Enabled            bool   `json:"enabled,omitempty" toml:"enabled,omitempty" yaml:"enabled,omitempty"`
-	PeriodSeconds      string `json:"periodseconds,omitempty" toml:"periodseconds,omitempty" yaml:"periodseconds,omitempty"`
-	RateLimitThreshold int    `json:"ratelimitthreshold,omitempty" toml:"ratelimitthreshold,omitempty" yaml:"ratelimitthreshold,omitempty"`
-}
-
 type Config struct {
-	StaticBlacklist  []string         `json:"staticblacklist,omitempty" toml:"staticblacklist,omitempty" yaml:"staticblacklist,omitempty"`
-	DynamicBlacklist dynamicBlacklist `json:"dynamicblacklist,omitempty" toml:"dynamicblacklist,omitempty" yaml:"dynamicblacklist,omitempty"`
-	RealIPDepth      int              `json:"realipdepth,omitempty" toml:"realipdepth,omitempty" yaml:"realipdepth,omitempty"`
-	DBPath           string           `json:"dbpath,omitempty" toml:"dbpath,omitempty" yaml:"dbpath,omitempty"`
+	StaticBlacklist []string `json:"staticblacklist,omitempty" toml:"staticblacklist,omitempty" yaml:"staticblacklist,omitempty"`
+	RealIPDepth     int      `json:"realipdepth,omitempty" toml:"realipdepth,omitempty" yaml:"realipdepth,omitempty"`
 }
 
 type ipBlackLister struct {
 	next   http.Handler
 	name   string
-	db     *datasource.Sqlite
 	config *Config
 }
 
 func CreateConfig() *Config {
 	return &Config{
-		StaticBlacklist:  []string{},
-		DynamicBlacklist: dynamicBlacklist{},
+		StaticBlacklist: []string{},
 	}
 }
 
 func New(ctx context.Context, next http.Handler, config *Config, name string) (http.Handler, error) {
-	sqlite, err := datasource.NewSqlite(config.DBPath)
-	if err != nil {
-		return nil, err
-	}
-
 	ipBlacklists := &ipBlackLister{
 		next:   next,
 		name:   name,
 		config: config,
-		db:     sqlite,
 	}
 
 	return ipBlacklists, nil
@@ -68,41 +48,7 @@ func (r *ipBlackLister) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	if r.config.DynamicBlacklist.Enabled && r.db.InBlacklist(userIP.String()) {
-		rw.WriteHeader(http.StatusForbidden)
-		return
-	}
-
-	if r.config.DynamicBlacklist.Enabled {
-		//go r.recordRequestLog(userIP.String(), req.RequestURI)
-		go r.recordRequestLog(userIP.String(), req.RequestURI)
-	}
-
 	r.next.ServeHTTP(rw, req)
-}
-
-func (r *ipBlackLister) recordRequestLog(userIP, url string) {
-	t := time.Now().UTC().Format("2006-01-02 15:04:05")
-	rl := datasource.RequestLogs{
-		CreateTime: t,
-		ClientIP:   userIP,
-		URL:        url,
-		Counter:    0,
-		LastTime:   t,
-	}
-
-	if err := r.db.InsertOrUpdateLogs(rl, r.config.DynamicBlacklist.PeriodSeconds); err != nil {
-		log.Printf("Add %s request %s log failed. %v", userIP, url, err)
-		return
-	}
-
-	if r.db.RateCount(userIP, url, r.config.DynamicBlacklist.PeriodSeconds) > r.config.DynamicBlacklist.RateLimitThreshold {
-		if err := r.db.AddBlacklist(userIP); err != nil {
-			log.Printf("Add %s/%s  blacklist failed. %v", userIP, url, err)
-			return
-		}
-	}
-
 }
 
 func inBlackList(ip net.IP, blacklist []string) bool {
